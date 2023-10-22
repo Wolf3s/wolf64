@@ -1,35 +1,21 @@
 # Compiled source #
 ###################
-*.com
-*.class
-*.dll
-*.exe
-*.so
+wolf64.z64
+spear64.z64
+
+# Data files #
+##############
 *.wl6
+*.sod
+*.sd1
+*.sd2
+*.sd3
+*.sd4
 
-# Intermediate source #
-###################
-*.s
-*.ii
-
-# Packages #
-############
-# it's better to unpack these files and commit the raw source
-# git has its own built in compression methods
-*.7z
-*.dmg
-*.gz
-*.iso
-*.jar
-*.rar
-*.tar
-*.zip
-
-# Logs and databases #
-######################
-*.log
-*.sql
-*.sqlite
+# Ares generated files #
+##############
+*.pak
+*.ram
 
 # OS generated files #
 ######################
@@ -41,27 +27,10 @@
 ehthumbs.db
 Thumbs.db
 
-# Unnecessary project clutter #
-###############################
-*.layout
-*.depend
-
-# Dev-CPP Files & Folders #
+# Build Folders #
 ##############
-/obj
-Wolf4SDL_private.h
-Wolf4SDL_private.rc
-Makefile.win
-
-# Dev-CPP Files & Folders #
-##############
-*.o
-*.d
-*.wl6
-
-
-
-
+/build/
+/filesystem/
 
 # VS Files & Folders #
 ##############
@@ -73,4 +42,3 @@ Makefile.win
 # VS Code Files & Folders #
 ##############
 /.vscode
-/build

@@ -1,136 +1,94 @@
-CONFIG ?= config.default
--include $(CONFIG)
+BUILD_DIR=build
+include $(N64_INST)/include/n64.mk
 
+N64_CFLAGS := $(filter-out -Werror -O2,$(N64_CFLAGS)) -I$(BUILD_DIR) -Os
+N64_CXXFLAGS := $(filter-out -Werror -O2,$(N64_CXXFLAGS)) -I$(BUILD_DIR) -Os
+OPTIONS :=
 
-BINARY    ?= wolf4sdl
-PREFIX    ?= /usr/local
-MANPREFIX ?= $(PREFIX)
+GAME ?= wolf
 
-INSTALL         ?= install
-INSTALL_PROGRAM ?= $(INSTALL) -m 555 -s
-INSTALL_MAN     ?= $(INSTALL) -m 444
-INSTALL_DATA    ?= $(INSTALL) -m 444
-
-ifeq ($(SDL_MAJOR_VERSION),1)
-	SDL_CONFIG  ?= sdl-config
+ifdef NOWAIT
+    OPTIONS += NOWAIT=true
 else
-	SDL_CONFIG  ?= sdl2-config
-endif
-CFLAGS_SDL  ?= $(shell $(SDL_CONFIG) --cflags)
-LDFLAGS_SDL ?= $(shell $(SDL_CONFIG) --libs)
-
-
-CFLAGS += $(CFLAGS_SDL)
-
-#CFLAGS += -Wall
-#CFLAGS += -W
-CFLAGS += -g
-CFLAGS += -Wpointer-arith
-CFLAGS += -Wreturn-type
-CFLAGS += -Wwrite-strings
-CFLAGS += -Wcast-align
-
-ifdef GPL
-    CFLAGS += -DUSE_GPL
+    OPTIONS += NOWAIT=false
 endif
 
-
-CCFLAGS += $(CFLAGS)
-CCFLAGS += -std=gnu99
-CCFLAGS += -Werror-implicit-function-declaration
-CCFLAGS += -Wimplicit-int
-CCFLAGS += -Wsequence-point
-
-CXXFLAGS += $(CFLAGS)
-
-LDFLAGS += $(LDFLAGS_SDL)
-ifeq ($(SDL_MAJOR_VERSION),1)
-	LDFLAGS += -lSDL_mixer
+ifeq ($(GAME),spear)
+  ROMTITLE := "Spear64"
+  ROMNAME := spear64
+  OPTIONS += CARMACIZED SPEAR GOODTIMES
+  assets := audiohed.sod audiot.sod gamemaps.sod maphead.sod \
+            vgadict.sod vgahead.sod vgagraph.sod vswap.sod
+else ifeq ($(GAME),speardemo)
+  ROMTITLE := "SpearDemo64"
+  ROMNAME := speardemo64
+  OPTIONS += CARMACIZED SPEAR SPEARDEMO
+  assets := audiohed.sdm audiot.sdm gamemaps.sdm maphead.sdm \
+            vgadict.sdm vgagraph.sdm vgahead.sdm vswap.sdm
+else ifeq ($(GAME),wolfdemo)
+  ROMTITLE := "WolfDemo64"
+  ROMNAME := wolfdemo64
+  OPTIONS += CARMACIZED UPLOAD
+  assets := audiohed.wl1 audiot.wl1 gamemaps.wl1 maphead.wl1 \
+            vgadict.wl1 vgagraph.wl1 vgahead.wl1 vswap.wl1
+else ifeq ($(GAME),wolf)
+  ROMTITLE := "Wolfenstein64"
+  ROMNAME := wolf64
+  OPTIONS += CARMACIZED GOODTIMES
+  assets := audiohed.wl6 audiot.wl6 gamemaps.wl6 maphead.wl6 vgadict.wl6 \
+            vgagraph.wl6 vgahead.wl6 vswap.wl6
 else
-	LDFLAGS += -lSDL2_mixer
-endif
-ifneq (,$(findstring MINGW,$(shell uname -s)))
-LDFLAGS += -static-libgcc
+    $(error Unknown game $(GAME))
 endif
 
-SRCS :=
-ifndef GPL
-    SRCS += mame/fmopl.c
-else
-    SRCS += dosbox/dbopl.cpp
+OPTIONS += GAMETITLE=$(ROMTITLE)
+
+$(shell mkdir -p $(BUILD_DIR))
+
+define nl
+
+
+endef
+
+CONFIG_H := $(BUILD_DIR)/config.h
+C_OPTIONS = $(foreach d,$(OPTIONS),#define $(subst =, ,$(d))$(nl))
+
+ifeq (,$(wildcard $(CONFIG_H)))
+    $(file > $(CONFIG_H),$(C_OPTIONS))
 endif
-SRCS += sdl_wrap.c
-SRCS += id_ca.c
-SRCS += id_in.c
-SRCS += id_pm.c
-SRCS += id_sd.c
-SRCS += id_us.c
-SRCS += id_vh.c
-SRCS += id_vl.c
-SRCS += signon.c
-SRCS += wl_act1.c
-SRCS += wl_act2.c
-SRCS += wl_agent.c
-SRCS += wl_atmos.c
-SRCS += wl_cloudsky.c
-SRCS += wl_debug.c
-SRCS += wl_draw.c
-SRCS += wl_game.c
-SRCS += wl_inter.c
-SRCS += wl_main.c
-SRCS += wl_menu.c
-SRCS += wl_parallax.c
-SRCS += wl_plane.c
-SRCS += wl_play.c
-SRCS += wl_scale.c
-SRCS += wl_shade.c
-SRCS += wl_state.c
-SRCS += wl_text.c
-SRCS += wl_utils.c
-
-DEPS = $(filter %.d, $(SRCS:.c=.d) $(SRCS:.cpp=.d))
-OBJS = $(filter %.o, $(SRCS:.c=.o) $(SRCS:.cpp=.o))
-
-.SUFFIXES:
-.SUFFIXES: .c .cpp .d .o
-
-Q ?= @
-
-all: $(BINARY)
-
-ifndef NO_DEPS
-depend: $(DEPS)
-
-ifeq ($(findstring $(MAKECMDGOALS), clean depend Data),)
--include $(DEPS)
-endif
+ifneq ($(strip $(file < $(CONFIG_H))),$(strip $(C_OPTIONS)))
+    $(file > $(CONFIG_H),$(C_OPTIONS))
 endif
 
-$(BINARY): $(OBJS)
-	@echo '===> LD $@'
-	$(Q)$(CXX) $(CFLAGS) $(OBJS) $(LDFLAGS) -o $@
+src := id_ca.c id_in.c id_pm.c id_sd.c id_us.c id_vh.c id_vl.c \
+       signon.c wl_act1.c wl_act2.c wl_agent.c wl_atmos.c wl_cloudsky.c \
+       wl_debug.c wl_draw.c wl_game.c wl_inter.c wl_main.c wl_menu.c \
+       wl_parallax.c wl_plane.c wl_play.c wl_scale.c wl_shade.c wl_state.c \
+       wl_text.c wl_utils.c dbopl.cpp n64_main.c
 
-.c.o:
-	@echo '===> CC $<'
-	$(Q)$(CC) $(CCFLAGS) -c $< -o $@
+src := $(addprefix src/,$(src))
+assets_conv := $(addprefix filesystem/$(GAME)/,$(assets))
 
-.cpp.o:
-	@echo '===> CXX $<'
-	$(Q)$(CXX) $(CXXFLAGS) -c $< -o $@
+all: $(ROMNAME).z64
 
-.c.d:
-	@echo '===> DEP $<'
-	$(Q)$(CC) $(CCFLAGS) -MM $< | sed 's#^$(@F:%.d=%.o):#$@ $(@:%.d=%.o):#' > $@
+filesystem/$(GAME)/%: data/%
+	@mkdir -p $(dir $@)
+	@echo "    [DATA] $@"
+	cp "$<" "$@"
 
-.cpp.d:
-	@echo '===> DEP $<'
-	$(Q)$(CXX) $(CXXFLAGS) -MM $< | sed 's#^$(@F:%.d=%.o):#$@ $(@:%.d=%.o):#' > $@
+$(assets_conv): $(CONFIG_H)
 
-clean distclean:
-	@echo '===> CLEAN'
-	$(Q)rm -fr $(DEPS) $(OBJS) $(BINARY) $(BINARY).exe
+$(BUILD_DIR)/$(ROMNAME).dfs: $(assets_conv)
+$(BUILD_DIR)/$(ROMNAME).elf: $(src:%.c=$(BUILD_DIR)/%.o) $(src:%.cpp=$(BUILD_DIR)/%.o)
 
-install: $(BINARY)
-	@echo '===> INSTALL'
-	$(Q)$(INSTALL) -d $(PREFIX)/bin
-	$(Q)$(INSTALL_PROGRAM) $(BINARY) $(PREFIX)/bin
+$(ROMNAME).z64: N64_ROM_TITLE=$(ROMTITLE)
+$(ROMNAME).z64: N64_ROM_SAVETYPE=sram1m
+$(ROMNAME).z64: N64_ROM_REGIONFREE=1
+$(ROMNAME).z64: $(BUILD_DIR)/$(ROMNAME).dfs
+
+clean:
+	rm -rf $(BUILD_DIR) filesystem/ $(ROMNAME).z64
+
+-include $(wildcard $(BUILD_DIR)/src/*.d)
+
+.PHONY: all clean
