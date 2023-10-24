@@ -100,6 +100,12 @@ static void SDL_SoundFinished(void)
 	SoundPriority = 0;
 }
 
+static void
+SDL_StartPC(void)
+{
+    mixer_ch_play(N_CHANNELS+2, &PCGenerator);
+}
+
 ///////////////////////////////////////////////////////////////////////////
 //
 //      SDL_PCPlaySound() - Plays the specified sound on the PC speaker
@@ -132,7 +138,8 @@ SDL_PCStopSound(void)
 static void
 SDL_ShutPC(void)
 {
-        pcSound = 0;
+    pcSound = 0;
+    mixer_ch_stop(N_CHANNELS+2);
 }
 
 // Adapted from Chocolate Doom (chocolate-doom/pcsound/pcsound_sdl.c)
@@ -491,6 +498,8 @@ SDL_ALPlaySound(AdLibSound *sound)
     alSound = (byte *)data;
 }
 
+static bool alStarted = false;
+
 ///////////////////////////////////////////////////////////////////////////
 //
 //      SDL_ShutAL() - Shuts down the AdLib card for sound effects
@@ -499,25 +508,16 @@ SDL_ALPlaySound(AdLibSound *sound)
 static void
 SDL_ShutAL(void)
 {
-    alSound = 0;
-    alOut(alEffects,0);
-    alOut(alFreqH + 0,0);
-    SDL_AlSetFXInst(&alZeroInst);
-}
-
-///////////////////////////////////////////////////////////////////////////
-//
-//      SDL_CleanAL() - Totally shuts down the AdLib card
-//
-///////////////////////////////////////////////////////////////////////////
-static void
-SDL_CleanAL(void)
-{
-    int     i;
-
-    alOut(alEffects,0);
-    for (i = 1; i < 0xf5; i++)
-        alOut(i, 0);
+    if (alStarted)
+    {
+        alSound = 0;
+        alOut(alEffects,0);
+        alOut(alFreqH + 0,0);
+        SDL_AlSetFXInst(&alZeroInst);
+        mixer_ch_stop(N_CHANNELS+0);
+        mixer_ch_stop(N_CHANNELS+1);
+        alStarted = false;
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -528,28 +528,21 @@ SDL_CleanAL(void)
 static void
 SDL_StartAL(void)
 {
-    alOut(alEffects, 0);
-    SDL_AlSetFXInst(&alZeroInst);
+    if (!alStarted)
+    {
+        alOut(alEffects, 0);
+        SDL_AlSetFXInst(&alZeroInst);
+        mixer_ch_play(N_CHANNELS+0, &FMGenerator);
+        alStarted = true;
+    }
 }
 
-///////////////////////////////////////////////////////////////////////////
-//
-//      SDL_DetectAdLib() - Determines if there's an AdLib (or SoundBlaster
-//              emulating an AdLib) present
-//
-///////////////////////////////////////////////////////////////////////////
-static boolean
-SDL_DetectAdLib(void)
+static void SDL_SyncAL(void)
 {
-    int i;
-
-    for (i = 1; i <= 0xf5; i++)       // Zero all the registers
-        alOut(i, 0);
-
-    alOut(1, 0x20);             // Set WSE=1
-//    alOut(8, 0);                // Set CSM=0 & SEL=0
-
-    return true;
+    if (SoundMode == sdm_AdLib || MusicMode == smm_AdLib)
+        SDL_StartAL();
+    else
+        SDL_ShutAL();
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -565,25 +558,11 @@ SDL_ShutDevice(void)
         case sdm_PC:
             SDL_ShutPC();
             break;
-        case sdm_AdLib:
-            SDL_ShutAL();
-            break;
         default:
             break;
     }
     SoundMode = sdm_Off;
-}
-
-///////////////////////////////////////////////////////////////////////////
-//
-//      SDL_CleanDevice() - totally shuts down all sound devices
-//
-///////////////////////////////////////////////////////////////////////////
-static void
-SDL_CleanDevice(void)
-{
-    if ((SoundMode == sdm_AdLib) || (MusicMode == smm_AdLib))
-        SDL_CleanAL();
+    SDL_SyncAL();
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -596,8 +575,11 @@ SDL_StartDevice(void)
 {
     switch (SoundMode)
     {
+        case sdm_PC:
+            SDL_StartPC();
+            break;
         case sdm_AdLib:
-            SDL_StartAL();
+            SDL_SyncAL();
             break;
     }
     SoundNumber = (soundnames) 0;
@@ -674,7 +656,11 @@ SD_SetMusicMode(SMMode mode)
     }
 
     if (result)
+    {
         MusicMode = mode;
+        SDL_SyncAL();
+    }
+
 
     return(result);
 }
@@ -810,7 +796,6 @@ SD_Startup(void)
     FMGenerator.loop_len = 0;
     FMGenerator.frequency = param_samplerate;
     FMGenerator.read = SDL_IMFMusicPlayer;
-    mixer_ch_play(N_CHANNELS+0, &FMGenerator);
 
     alTimeCount = 0;
 	
@@ -822,7 +807,6 @@ SD_Startup(void)
     PCGenerator.loop_len = 0;
     PCGenerator.frequency = param_samplerate;
     PCGenerator.read = SDL_PCMixCallback;
-    mixer_ch_play(N_CHANNELS+2, &PCGenerator);
 
     SD_SetSoundMode(sdm_AdLib);
     SD_SetMusicMode(smm_AdLib);
