@@ -28,11 +28,7 @@
 //
 
 #include "wl_def.h"
-#ifdef USE_GPL
 #include "dbopl.h"
-#else
-#include "fmopl.h"
-#endif
 
 #define ORIGSAMPLERATE 7042
 

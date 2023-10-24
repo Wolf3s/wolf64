@@ -36,8 +36,6 @@
 
 #include "version.h"
 
-#ifdef USE_GPL
-
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -1826,5 +1824,3 @@ void YM3812UpdateOne(int which, int16_t *stream, int length)
 	}
 }
 }
-
-#endif  // ifdef USE_GPL
