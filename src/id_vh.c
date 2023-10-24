@@ -166,8 +166,6 @@ static const uint32_t rndmasks[] = {
 static uint32_t rndbits_y;
 static uint32_t rndmask;
 
-extern uint16_t curpal[256];
-
 // Returns the number of bits needed to represent the given value
 static int log2_ceil(uint32_t x)
 {

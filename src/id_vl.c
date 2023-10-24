@@ -33,7 +33,8 @@ unsigned bordercolor;
 uint32_t *ylookup;
 
 uint16_t palette1[256], palette2[256];
-uint16_t curpal[256];
+uint16_t cachedcurpal[256];
+uint16_t *curpal = cachedcurpal;
 
 
 #define CASSERT(x) extern int ASSERT_COMPILE[((x) != 0) * 2 - 1];
@@ -112,6 +113,8 @@ void VL_SetVGAPlaneMode (void)
 
     resolution_t res = { .width = screenWidth + 32, .height = screenHeight + 16, .interlaced = INTERLACE_OFF };
     display_init(res, screenBits == 16 ? DEPTH_16_BPP : DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+
+    curpal = UncachedAddr(cachedcurpal);
 
     memcpy(curpal, gamepal, sizeof gamepal);
 
@@ -236,7 +239,7 @@ void VL_GetColor	(int color, int *red, int *green, int *blue)
 
 void VL_SetPalette (const uint16_t *palette, bool forceupdate)
 {
-    memcpy(curpal, palette, sizeof curpal);
+    memcpy(curpal, palette, sizeof cachedcurpal);
     if (forceupdate)
         VW_UpdateScreen();
 }
@@ -254,7 +257,7 @@ void VL_SetPalette (const uint16_t *palette, bool forceupdate)
 
 void VL_GetPalette (uint16_t *palette)
 {
-    memcpy(palette, curpal, sizeof curpal);
+    memcpy(palette, curpal, sizeof cachedcurpal);
 }
 
 
