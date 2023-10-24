@@ -1059,8 +1059,6 @@ void CA_CacheMap (int mapnum)
         //
         CA_RLEWexpand (source+1,dest,size,tinf->RLEWtag);
 #endif
-        for (int i = 0; i < MAPSIZE; i++)
-            dest[i] = swapword(dest[i]);
 
         free(bufferseg);
     }
