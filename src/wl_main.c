@@ -4,20 +4,6 @@
 #include "wl_def.h"
 #include "wl_atmos.h"
 
- __attribute__((always_inline))
-char* itoa(int value, char* string, int radix)
-{
-  sprintf(string, "%d", value);
-  return string;
-}
-
- __attribute__((always_inline))
-char* ltoa(long value, char* string, int radix)
-{
-  sprintf(string, "%ld", value);
-  return string;
-}
-
 /*
 =============================================================================
 
