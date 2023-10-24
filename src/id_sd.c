@@ -680,7 +680,7 @@ void SDL_IMFMusicPlayer(void *ctx, samplebuffer_t *sbuf, int wpos, int len, bool
             if(numreadysamples<sampleslen)
             {
                 YM3812UpdateOne(oplChip, stream16, numreadysamples);
-                stream16 += numreadysamples*2;
+                stream16 += numreadysamples;
                 sampleslen -= numreadysamples;
             }
             else
@@ -787,7 +787,7 @@ SD_Startup(void)
 
     FMGenerator.len = WAVEFORM_UNKNOWN_LEN;
     FMGenerator.bits = 16;
-    FMGenerator.channels = 2;
+    FMGenerator.channels = 1;
     FMGenerator.name = "IMF";
     FMGenerator.loop_len = 0;
     FMGenerator.frequency = param_samplerate;
