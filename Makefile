@@ -12,6 +12,12 @@ ifdef NOWAIT
 else
     OPTIONS += NOWAIT=false
 endif
+ifdef WARP
+    OPTIONS += DEVWARP=$(WARP)
+endif
+ifdef SKILL
+    OPTIONS += DEVSKILL=$(SKILL)
+endif
 
 ifeq ($(GAME),spear)
   ROMTITLE := "Spear64"

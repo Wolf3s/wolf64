@@ -88,8 +88,16 @@ char    configname[13] = "config.";
 //
 boolean param_debugmode = false;
 boolean param_nowait = NOWAIT;
+#ifdef DEVSKILL
+int     param_difficulty = DEVSKILL;
+#else
 int     param_difficulty = 1;           // default is "normal"
+#endif
+#ifdef DEVWARP
+int     param_tedlevel = DEVWARP;
+#else
 int     param_tedlevel = -1;            // default is not to start a level
+#endif
 int     param_joystickindex = 0;
 
 int     param_joystickhat = 0;
