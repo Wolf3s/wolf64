@@ -1,7 +1,7 @@
 # Wolfenstein 64
 
 A port of Wolfenstein 3D and Spear of Destiny to the Nintendo 64 console,
-adapted from [Wolf4SDL](https://github.com/fabiangreffrath/wolf4sdl/) and
+adapted from [Wolf4SDL](https://github.com/11001011101001011/Wolf4SDL) and
 using [libdragon](https://libdragon.dev/).
 
 ## Building
