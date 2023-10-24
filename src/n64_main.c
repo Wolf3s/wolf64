@@ -4,12 +4,14 @@
 #include <usb.h>
 #include <malloc.h>
 
-#define SRAM_START_ADDR  0xA8000000
+#define SRAM_START_ADDR  0x08000000
+#define SRAM_SIZE 0x20000
 #define PI_BSD_DOM2_LAT ((volatile uint32_t*) 0xA4600024)
 #define PI_BSD_DOM2_PWD ((volatile uint32_t*) 0xA4600028)
 #define PI_BSD_DOM2_PGS ((volatile uint32_t*) 0xA460002C)
 #define PI_BSD_DOM2_RLS ((volatile uint32_t*) 0xA4600030)
 #define SAVE_ADDR (SRAM_START_ADDR+sizeof(N64Config))
+#define SAVE_END_ADDR (SRAM_START_ADDR+SRAM_SIZE)
 
 void N64_Init(void)
 {
@@ -36,17 +38,17 @@ void N64_Init(void)
 }
 
 typedef struct  __attribute__((aligned(16))) {
-    word magic;
-    uint8_t  sd;
-    uint8_t  sm;
+    word    magic;
+    uint8_t sd;
+    uint8_t sm;
     uint8_t DigiMode;
     uint8_t MoveMode;
     uint8_t viewsize;
     uint8_t stickadjustment;
     uint8_t mouseadjustment;
     uint8_t autorun;
-    int8_t buttonjoy[16];
-    int8_t buttonmouse[2];
+    int8_t  buttonjoy[16];
+    int8_t  buttonmouse[2];
     HighScore scores[MaxScores];
 } N64Config;
 
@@ -92,6 +94,7 @@ void N64_LoadConfig(void)
         stickadjustment=56;
         MoveMode = 0;
         autorun = false;
+        N64_SaveConfig();
     }
 
     SD_SetMusicMode (config.sm);
@@ -127,6 +130,7 @@ void Present(surface_t *surface)
     rdpq_attach_clear(cur, NULL);
     rdpq_set_mode_copy(false);
     rdpq_mode_tlut(TLUT_RGBA16);
+    data_cache_hit_writeback(curpal, sizeof curpal);
     rdpq_tex_upload_tlut(curpal, 0, 256);
     rdpq_tex_blit(surface, 16, 8, NULL);
     rdpq_detach_wait();
@@ -135,11 +139,9 @@ void Present(surface_t *surface)
 
 #define BUFSIZE 4096
 
-typedef struct  __attribute__((aligned(16))){
-    byte data[BUFSIZE];
-    int offset;
+typedef struct {
     unsigned long pi;
-} SramBuf;
+} ReadBuf;
 
 int close_read_sram(void *cookie)
 {
@@ -149,69 +151,68 @@ int close_read_sram(void *cookie)
 
 int read_sram(void *cookie, char *buf, int len)
 {
-    int count;
-    int bufoffset = 0;
-    SramBuf *b = cookie;
+    ReadBuf *b = cookie;
 
+    if (b->pi + len < b->pi)
+        return 0;
+    if (b->pi + len >= SAVE_END_ADDR)
+        return 0;
+
+    data_cache_hit_writeback_invalidate(buf, len);
+    dma_read_async(buf, b->pi, len);
     dma_wait();
-
-    while (len > 0)
-    {
-        if (b->offset == BUFSIZE)
-        {
-            dma_read_raw_async(b->data, b->pi, BUFSIZE);
-            b->offset = 0;
-            b->pi += BUFSIZE;
-            dma_wait();
-        }
-        count = MIN(len, BUFSIZE - b->offset);
-        memcpy(&buf[bufoffset], &b->data[b->offset], count);
-        b->offset += count;
-        bufoffset += count;
-        len -= count;
-    }
-    return 0;
+    b->pi += len;
+    return len;
 }
 
 FILE *N64_ReadSave(void)
 {
-    SramBuf *buf = malloc_uncached_aligned(16, sizeof(SramBuf));
+    ReadBuf *buf = malloc(sizeof(ReadBuf));
     assertf(buf, "out of memory");
-    buf->offset = 0;
-    buf->pi = SAVE_ADDR + BUFSIZE;
-    dma_read_raw_async(buf->data, 0, BUFSIZE);
+    buf->pi = SAVE_ADDR;
     return funopen(buf, read_sram, NULL, NULL, close_read_sram);
 }
+
+#define BUFSIZE 4096
+
+typedef struct  __attribute__((aligned(16))){
+    byte data[BUFSIZE];
+    int offset;
+    unsigned long pi;
+} WriteBuf;
 
 int write_sram(void *cookie, const char *buf, int len)
 {
     int count;
-    int bufoffset = 0;
-    SramBuf *b = cookie;
+    int written = 0;
+    WriteBuf *b = cookie;
     while (len > 0)
     {
+        if (b->pi >= SAVE_END_ADDR)
+            return written;
+
         count = MIN(len, BUFSIZE - b->offset);
-        memcpy(&b->data[b->offset], &buf[bufoffset], count);
+        memcpy(UncachedAddr(&b->data[b->offset]), &buf[written], count);
         b->offset += count;
-        bufoffset += count;
+        written += count;
         len -= count;
         if (b->offset == BUFSIZE)
         {
-            dma_write_raw_async(b->data, b->pi, BUFSIZE);
+            dma_write_raw_async(UncachedAddr(b->data), b->pi, BUFSIZE);
             b->offset = 0;
             b->pi += BUFSIZE;
             dma_wait();
         }
     }
-    return 0;
+    return written;
 }
 
 int close_write_sram(void *cookie)
 {
-    SramBuf *b = cookie;
+    WriteBuf *b = cookie;
     if (b->offset > 0)
     {
-        dma_write_raw_async(b->data, b->pi, b->offset);
+        dma_write_raw_async(UncachedAddr(b->data), b->pi, (b->offset+1)&~1);
         dma_wait();
     }
     free(cookie);
@@ -220,7 +221,7 @@ int close_write_sram(void *cookie)
 
 FILE *N64_WriteSave(void)
 {
-    SramBuf *buf = malloc_uncached_aligned(16, sizeof(SramBuf));
+    WriteBuf *buf = memalign(16, sizeof(WriteBuf));
     assertf(buf, "out of memory");
     buf->offset = 0;
     buf->pi = SAVE_ADDR;

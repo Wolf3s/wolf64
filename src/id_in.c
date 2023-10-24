@@ -157,7 +157,7 @@ IN_ReadControl(int player,ControlInfo *info)
   else if (dir == JOYPAD_8WAY_RIGHT)
     mx = motion_Right;
 
-  joypad_buttons_t pad = joypad_get_buttons(JOYPAD_PORT_1);
+  joypad_buttons_t pad = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
   dx = mx * 127;
   dy = my * 127;

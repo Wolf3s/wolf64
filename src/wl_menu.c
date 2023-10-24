@@ -50,8 +50,8 @@ CP_itemtype MainMenu[] = {
     {1, "", CP_NewGame},
     {1, "", CP_Sound},
     {1, "", CP_Control},
-    {1, "", CP_LoadGame},
-    {0, "", CP_SaveGame},
+    {1, "", NULL},
+    {0, "", NULL},
     {1, "", CP_ChangeView},
     {1, "", CP_Cheats},
     {2, "", CP_ReadThis},
@@ -62,8 +62,8 @@ CP_itemtype MainMenu[] = {
     {1, STR_NG, CP_NewGame},
     {1, STR_SD, CP_Sound},
     {1, STR_CL, CP_Control},
-    {1, STR_LG, CP_LoadGame},
-    {0, STR_SG, CP_SaveGame},
+    {1, STR_LG, NULL},
+    {0, STR_SG, NULL},
     {1, STR_CV, CP_ChangeView},
     {1, STR_CH, CP_Cheats},
 
@@ -257,12 +257,10 @@ int color_norml[] = {
 int EpisodeSelect[6] = { 1 };
 
 
-static int SaveGamesAvail[10];
+static bool SaveGameAvail = false;
 static int StartGame;
 static int SoundStatus = 1;
 static int pickquick;
-static char SaveGameNames[10][32];
-static char SaveName[13] = "savegam?.";
 
 
 ////////////////////////////////////////////////////////////////////
@@ -338,6 +336,12 @@ US_ControlPanel ()
 
         switch (which)
         {
+            case loadgame:
+                CP_LoadGame();
+                break;
+            case savegame:
+                CP_SaveGame();
+                break;
             case viewscores:
                 if (MainMenu[viewscores].routine == NULL)
                 {
@@ -911,6 +915,7 @@ CP_Sound (int blank)
                     SD_WaitSoundDone ();
                     SD_SetSoundMode (sdm_Off);
                     DrawSoundMenu ();
+                    WriteConfig();
                 }
                 break;
             case 1:
@@ -921,6 +926,7 @@ CP_Sound (int blank)
                     CA_LoadAllSounds ();
                     DrawSoundMenu ();
                     ShootSnd ();
+                    WriteConfig();
                 }
                 break;
             case 2:
@@ -931,6 +937,7 @@ CP_Sound (int blank)
                     CA_LoadAllSounds ();
                     DrawSoundMenu ();
                     ShootSnd ();
+                    WriteConfig();
                 }
                 break;
 
@@ -942,6 +949,7 @@ CP_Sound (int blank)
                 {
                     SD_SetDigiDevice (sds_Off);
                     DrawSoundMenu ();
+                    WriteConfig();
                 }
                 break;
             case 6:
@@ -950,6 +958,7 @@ CP_Sound (int blank)
                     SD_SetDigiDevice (sds_SoundSource);
                     DrawSoundMenu ();
                     ShootSnd ();
+                    WriteConfig();
                 }*/
                 break;
             case 7:
@@ -958,6 +967,7 @@ CP_Sound (int blank)
                     SD_SetDigiDevice (sds_SoundBlaster);
                     DrawSoundMenu ();
                     ShootSnd ();
+                    WriteConfig();
                 }
                 break;
 
@@ -970,6 +980,7 @@ CP_Sound (int blank)
                     SD_SetMusicMode (smm_Off);
                     DrawSoundMenu ();
                     ShootSnd ();
+                    WriteConfig();
                 }
                 break;
             case 11:
@@ -979,6 +990,7 @@ CP_Sound (int blank)
                     DrawSoundMenu ();
                     ShootSnd ();
                     StartCPMusic (MENUSONG);
+                    WriteConfig();
                 }
                 break;
         }
@@ -1119,6 +1131,7 @@ DrawLSAction (int which)
     VW_UpdateScreen ();
 }
 
+static const char savemagic[32] = ROMNAME " save game";
 
 ////////////////////////////////////////////////////////////////////
 //
@@ -1126,153 +1139,43 @@ DrawLSAction (int which)
 //
 ////////////////////////////////////////////////////////////////////
 int
-CP_LoadGame (int quick)
+CP_LoadGame (void)
 {
     FILE *file;
-    int which, exit = 0;
+    char magic[32];
 
-    //
-    // QUICKLOAD?
-    //
-    if (quick)
+    ShootSnd ();
+    DrawLSAction (0);
+    file = N64_ReadSave();
+    fread(magic, 1, sizeof magic, file);
+    if (strncmp(magic, savemagic, 32) == 0)
     {
-        which = LSItems.curpos;
+        loadedgame = true;
 
-        if (SaveGamesAvail[which])
+        if (LoadTheGame (file, LSA_X + 8, LSA_Y + 5))
         {
-            file = N64_ReadSave();
-            fseek (file, 32, SEEK_SET);
-            loadedgame = true;
-            LoadTheGame (file, 0, 0);
-            loadedgame = false;
-            fclose (file);
-
-            DrawFace ();
-            DrawHealth ();
-            DrawLives ();
-            DrawLevel ();
-            DrawAmmo ();
-            DrawKeys ();
-            DrawWeapon ();
-            DrawScore ();
-            ContinueMusic (lastgamemusicoffset);
-            return 1;
-        }
-    }
-
-    DrawLoadSaveScreen (0);
-
-    do
-    {
-        which = HandleMenu (&LSItems, &LSMenu[0], TrackWhichGame);
-        if (which >= 0 && SaveGamesAvail[which])
-        {
-            ShootSnd ();
-
-            file = N64_ReadSave();
-            fseek (file, 32, SEEK_SET);
-
-            DrawLSAction (0);
-            loadedgame = true;
-
-            LoadTheGame (file, LSA_X + 8, LSA_Y + 5);
-            fclose (file);
-
             StartGame = 1;
             ShootSnd ();
-            //
-            // CHANGE "READ THIS!" TO NORMAL COLOR
-            //
-
-#ifndef SPEAR
-#ifndef GOODTIMES
-            MainMenu[readthis].active = 1;
-#endif
-#endif
-
-            exit = 1;
-            break;
         }
-
     }
-    while (which >= 0);
+    fclose (file);
 
-    MenuFadeOut ();
+    if (!StartGame)
+    {
+        file = N64_WriteSave();
+        memset(magic, 0, sizeof magic);
+        fwrite(magic, 0, sizeof magic, file);
+        fclose(file);
+        SaveGameAvail = false;
+        MainMenu[loadgame].active = false;
+        MainItems.curpos = backtodemo;
+        DrawMainMenu();
+        Message("Save Game Corrupted");
 
-    return exit;
-}
-
-
-///////////////////////////////////
-//
-// HIGHLIGHT CURRENT SELECTED ENTRY
-//
-void
-TrackWhichGame (int w)
-{
-    static int lastgameon = 0;
-
-    PrintLSEntry (lastgameon, TEXTCOLOR);
-    PrintLSEntry (w, HIGHLIGHT);
-
-    lastgameon = w;
-}
-
-
-////////////////////////////
-//
-// DRAW THE LOAD/SAVE SCREEN
-//
-void
-DrawLoadSaveScreen (int loadsave)
-{
-#define DISKX   100
-#define DISKY   0
-
-    int i;
-
-
-    ClearMScreen ();
-    fontnumber = 1;
-    VWB_DrawPic (112, 184, C_MOUSELBACKPIC);
-    DrawWindow (LSM_X - 10, LSM_Y - 5, LSM_W, LSM_H, BKGDCOLOR);
-    DrawStripes (10);
-
-    if (!loadsave)
-        VWB_DrawPic (60, 0, C_LOADGAMEPIC);
-    else
-        VWB_DrawPic (60, 0, C_SAVEGAMEPIC);
-
-    for (i = 0; i < 1; i++)
-        PrintLSEntry (i, TEXTCOLOR);
-
-    DrawMenu (&LSItems, &LSMenu[0]);
-    VW_UpdateScreen ();
-    MenuFadeIn ();
-    WaitKeyUp ();
-}
-
-
-///////////////////////////////////////////
-//
-// PRINT LOAD/SAVE GAME ENTRY W/BOX OUTLINE
-//
-void
-PrintLSEntry (int w, int color)
-{
-    SETFONTCOLOR (color, BKGDCOLOR);
-    DrawOutline (LSM_X + LSItems.indent, LSM_Y + w * 13, LSM_W - LSItems.indent - 15, 11, color,
-                 color);
-    PrintX = LSM_X + LSItems.indent + 2;
-    PrintY = LSM_Y + w * 13 + 1;
-    fontnumber = 0;
-
-    if (SaveGamesAvail[w])
-        US_Print (SaveGameNames[w]);
-    else
-        US_Print ("      - " STR_EMPTY " -");
-
-    fontnumber = 1;
+        IN_Ack();
+        DrawMainMenu();
+    }
+    return 1;
 }
 
 
@@ -1282,131 +1185,25 @@ PrintLSEntry (int w, int color)
 //
 ////////////////////////////////////////////////////////////////////
 int
-CP_SaveGame (int quick)
+CP_SaveGame (void)
 {
-    int which, exit = 0;
     FILE *file;
-    char name[13];
-    char savepath[300];
-    char input[32];
+    ShootSnd ();
 
-    strcpy (name, SaveName);
+    file = N64_WriteSave();
+    fwrite (savemagic, 32, 1, file);
+    fseek (file, 32, SEEK_SET);
 
-    //
-    // QUICKSAVE?
-    //
-    if (quick)
-    {
-        which = LSItems.curpos;
+    DrawLSAction (0);
+    SaveTheGame (file, LSA_X + 8, LSA_Y + 5);
 
-        if (SaveGamesAvail[which])
-        {
-            name[7] = which + '0';
+    fclose (file);
 
-            if(configdir[0])
-                snprintf(savepath, sizeof(savepath), "%s/%s", configdir, name);
-            else
-                strcpy(savepath, name);
-
-            unlink (savepath);
-            file = N64_WriteSave();
-
-            strcpy (input, &SaveGameNames[which][0]);
-
-            fwrite (input, 1, 32, file);
-            fseek (file, 32, SEEK_SET);
-            SaveTheGame (file, 0, 0);
-            fclose (file);
-
-            return 1;
-        }
-    }
-
-    DrawLoadSaveScreen (1);
-
-    do
-    {
-        which = HandleMenu (&LSItems, &LSMenu[0], TrackWhichGame);
-        if (which >= 0)
-        {
-            //
-            // OVERWRITE EXISTING SAVEGAME?
-            //
-            if (SaveGamesAvail[which])
-            {
-#ifdef JAPAN
-                if (!GetYorN (7, 8, C_JAPSAVEOVERPIC))
-#else
-                if (!Confirm (GAMESVD))
-#endif
-                {
-                    DrawLoadSaveScreen (1);
-                    continue;
-                }
-                else
-                {
-                    DrawLoadSaveScreen (1);
-                    PrintLSEntry (which, HIGHLIGHT);
-                    VW_UpdateScreen ();
-                }
-            }
-
-            ShootSnd ();
-
-            strcpy (input, &SaveGameNames[which][0]);
-            name[7] = which + '0';
-
-            fontnumber = 0;
-            if (!SaveGamesAvail[which])
-                VWB_Bar (LSM_X + LSItems.indent + 1, LSM_Y + which * 13 + 1,
-                         LSM_W - LSItems.indent - 16, 10, BKGDCOLOR);
-            VW_UpdateScreen ();
-
-            if (US_LineInput
-                (LSM_X + LSItems.indent + 2, LSM_Y + which * 13 + 1, input, input, true, 31,
-                 LSM_W - LSItems.indent - 30))
-            {
-                SaveGamesAvail[which] = 1;
-                strcpy (&SaveGameNames[which][0], input);
-
-                if(configdir[0])
-                    snprintf(savepath, sizeof(savepath), "%s/%s", configdir, name);
-                else
-                    strcpy(savepath, name);
-
-                unlink (savepath);
-                file = N64_ReadSave();
-                fwrite (input, 32, 1, file);
-                fseek (file, 32, SEEK_SET);
-
-                DrawLSAction (1);
-                SaveTheGame (file, LSA_X + 8, LSA_Y + 5);
-
-                fclose (file);
-
-                ShootSnd ();
-                exit = 1;
-            }
-            else
-            {
-                VWB_Bar (LSM_X + LSItems.indent + 1, LSM_Y + which * 13 + 1,
-                         LSM_W - LSItems.indent - 16, 10, BKGDCOLOR);
-                PrintLSEntry (which, HIGHLIGHT);
-                VW_UpdateScreen ();
-                SD_PlaySound (ESCPRESSEDSND);
-                continue;
-            }
-
-            fontnumber = 1;
-            break;
-        }
-
-    }
-    while (which >= 0);
-
-    MenuFadeOut ();
-
-    return exit;
+    ShootSnd ();
+    SaveGameAvail = true;
+    MainMenu[loadgame].active = true;
+    DrawMainMenu();
+    return 1;
 }
 
 int
@@ -1421,44 +1218,40 @@ CP_Cheats (int blank)
     do
     {
         which = HandleMenu (&CheatItems, CheatMenu, NULL);
-        joypad_buttons_t pad = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (pad.a)
+        switch (which)
         {
-            switch (which)
-            {
-                case CHT_GODMODE:
-                    godmode ^= 1;
+            case CHT_GODMODE:
+                godmode ^= 1;
+                DrawCheatScreen ();
+                ShootSnd ();
+                break;
+            case CHT_NOCLIP:
+                noclip ^= 1;
+                DrawCheatScreen ();
+                ShootSnd ();
+                break;
+            case CHT_MAPREVEAL:
+                mapreveal ^= 1;
+                DrawCheatScreen ();
+                ShootSnd ();
+                break;
+            case CHT_BOOST:
+                if (ingame)
+                {
+                    gamestate.health = 100;
+                    gamestate.ammo = 99;
+                    gamestate.keys = 3;
+                    GiveWeapon (wp_machinegun);
+                    GiveWeapon (wp_chaingun);
                     DrawCheatScreen ();
                     ShootSnd ();
-                    break;
-                case CHT_NOCLIP:
-                    noclip ^= 1;
-                    DrawCheatScreen ();
-                    ShootSnd ();
-                    break;
-                case CHT_MAPREVEAL:
-                    mapreveal ^= 1;
-                    DrawCheatScreen ();
-                    ShootSnd ();
-                    break;
-                case CHT_BOOST:
-                    if (ingame)
-                    {
-                        gamestate.health = 100;
-                        gamestate.ammo = 99;
-                        gamestate.keys = 3;
-                        GiveWeapon (wp_machinegun);
-                        GiveWeapon (wp_chaingun);
-                        DrawCheatScreen ();
-                        ShootSnd ();
-                    }
-                    break;
-                case CHT_SHOWFPS:
-                    fpscounter ^= 1;
-                    DrawCheatScreen ();
-                    ShootSnd ();
-                    break;
-            }
+                }
+                break;
+            case CHT_SHOWFPS:
+                fpscounter ^= 1;
+                DrawCheatScreen ();
+                ShootSnd ();
+                break;
         }
     }
     while (which >= 0);
@@ -1484,18 +1277,19 @@ CP_Control (int blank)
     do
     {
         which = HandleMenu (&CtlItems, CtlMenu, NULL);
-        joypad_buttons_t pad = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (pad.a && which == CTL_ALWAYSRUN)
+        if (which == CTL_ALWAYSRUN)
         {
             autorun ^= 1;
             DrawCtlScreen ();
             ShootSnd ();
+            WriteConfig();
         }
-        else if (pad.a && which == CTL_STICKMODE)
+        else if (which == CTL_STICKMODE)
         {
             MoveMode ^= 1;
             DrawCtlScreen ();
             ShootSnd ();
+            WriteConfig();
         }
         else if (CtlItems.curpos == CTL_MOUSESENS)
         {
@@ -1508,6 +1302,7 @@ CP_Control (int blank)
                         mouseadjustment--;
                         SD_PlaySound (MOVEGUN1SND);
                         DrawCtlScreen ();
+                        WriteConfig();
                         TicDelay(20);
                     }
                     break;
@@ -1518,6 +1313,7 @@ CP_Control (int blank)
                         mouseadjustment++;
                         SD_PlaySound (MOVEGUN1SND);
                         DrawCtlScreen ();
+                        WriteConfig();
                         TicDelay(20);
                     }
                     break;
@@ -1537,6 +1333,7 @@ CP_Control (int blank)
                         stickadjustment = CLAMP(stickadjustment, 0, 120);
                         SD_PlaySound (MOVEGUN1SND);
                         DrawCtlScreen ();
+                        WriteConfig();
                     }
                     break;
 
@@ -1547,6 +1344,7 @@ CP_Control (int blank)
                         stickadjustment = CLAMP(stickadjustment, 0, 120);
                         SD_PlaySound (MOVEGUN1SND);
                         DrawCtlScreen ();
+                        WriteConfig();
                     }
                     break;
                 default:
@@ -2293,6 +2091,7 @@ CP_ChangeView (int blank)
         NewViewSize (newview);
     }
 
+    WriteConfig();
     ShootSnd ();
     MenuFadeOut ();
     if(screenHeight % 200 != 0)
@@ -2517,6 +2316,8 @@ SetupControlPanel (void)
     if(screenHeight % 200 != 0)
         VL_ClearScreen(0);
 
+    MainMenu[loadgame].active = SaveGameAvail;
+
     if (!ingame)
         CA_LoadAllSounds ();
     else
@@ -2535,10 +2336,10 @@ void SetupSaveGames()
     {
         char temp[32];
 
-        SaveGamesAvail[0] = 1;
         fread(temp, 1, 32, handle);
+        if (strncmp(temp, savemagic, 32) == 0)
+            SaveGameAvail = true;
         fclose(handle);
-        strcpy(&SaveGameNames[0][0], temp);
     }
 }
 
@@ -3276,7 +3077,6 @@ CheckForEpisodes (void)
 #endif
 
     strcat (configname, extension);
-    strcat (SaveName, extension);
     strcat (demoname, extension);
 
 #ifndef SPEAR

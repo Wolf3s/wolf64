@@ -269,6 +269,8 @@ boolean SaveTheGame(FILE *file,int x,int y)
     for (ob = ob->next; ob; ob=ob->next)
     {
         memcpy(&nullobj,ob,sizeof(nullobj));
+        nullobj.next = NULL;
+        nullobj.prev = NULL;
         nullobj.state=(statetype *) ((uintptr_t)nullobj.state-(uintptr_t)&s_grdstand);
         fwrite(&nullobj,sizeof(nullobj),1,file);
     }
@@ -334,7 +336,7 @@ boolean SaveTheGame(FILE *file,int x,int y)
 boolean LoadTheGame(FILE *file,int x,int y)
 {
     int i,j;
-    int actnum = 0;
+    word actnum = 0;
     word laststatobjnum;
     int32_t checksum,oldchecksum;
     objtype nullobj;
@@ -393,7 +395,7 @@ boolean LoadTheGame(FILE *file,int x,int y)
         GetNewActor ();
         nullobj.state=(statetype *) ((uintptr_t)nullobj.state+(uintptr_t)&s_grdstand);
         // don't copy over the links
-        memcpy (newobj,&nullobj,sizeof(nullobj)-8);
+        memcpy (newobj,&nullobj,offsetof(objtype, next));
     }
 
     DiskFlopAnim(x,y);
@@ -466,19 +468,7 @@ boolean LoadTheGame(FILE *file,int x,int y)
 
     if (oldchecksum != checksum)
     {
-        Message(STR_SAVECHT1"\n"
-                STR_SAVECHT2"\n"
-                STR_SAVECHT3"\n"
-                STR_SAVECHT4);
-
-        IN_Ack();
-
-        gamestate.oldscore = gamestate.score = 0;
-        gamestate.lives = 1;
-        gamestate.weapon =
-            gamestate.chosenweapon =
-            gamestate.bestweapon = wp_pistol;
-        gamestate.ammo = 8;
+        return false;
     }
 
     return true;
@@ -1203,18 +1193,8 @@ void Quit (const char *errorStr, ...)
     {
         ShutdownId();
         if (error && *error)
-        {
-            console_init();
-#ifdef NOTYET
-            SetTextCursor(0,0);
-#endif
-            puts(error);
-#ifdef NOTYET
-            SetTextCursor(0,2);
-#endif
-            console_render();
-        }
-        exit(1);
+            assertf(0, "%s", error);
+        assertf(0, "Unknown error");
     }
 
     if (!error || !*error)
@@ -1235,17 +1215,7 @@ void Quit (const char *errorStr, ...)
 
     if (error && *error)
     {
-        console_init();
-#ifdef NOTYET
-        memcpy((byte *)0xb8000,screen+7,7*160);
-        SetTextCursor(9,3);
-#endif
-        puts(error);
-#ifdef NOTYET
-        SetTextCursor(0,7);
-#endif
-        console_render();
-        exit(1);
+        assertf(0, "%s", error);
     }
     else
     if (!error || !(*error))

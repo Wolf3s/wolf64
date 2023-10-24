@@ -902,6 +902,7 @@ void            NewGame (int difficulty, int episode);
 void            CalcProjection (int32_t focal);
 void            NewViewSize (int width);
 boolean         SetViewSize (unsigned width, unsigned height);
+void            WriteConfig (void);
 boolean         LoadTheGame (FILE *file, int x, int y);
 boolean         SaveTheGame (FILE *file, int x, int y);
 void            ShowViewSize (int width);

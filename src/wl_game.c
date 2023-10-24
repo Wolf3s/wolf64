@@ -1353,7 +1353,8 @@ void GameLoop (void)
 restartgame:
     ClearMemory ();
     SETFONTCOLOR(0,15);
-    VW_FadeOut();
+    if (!loadedgame)
+        VW_FadeOut();
     DrawPlayScreen ();
     died = false;
     do

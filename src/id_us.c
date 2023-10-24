@@ -586,30 +586,33 @@ US_LineInput(int x,int y,char *buf,const char *def,boolean escok,
 		if((int)(curtime - lastbuttontime) > TickBase / 4)   // 250 ms
 		{
             joypad_buttons_t button = joypad_get_buttons(JOYPAD_PORT_1);
-			if(button.a)             // acts as return
-			{
-				strcpy(buf,s);
-				done = true;
-				result = true;
-				checkkey = false;
-			}
-			if(button.start && escok)    // acts as escape
+			if(button.b && button.start && escok)    // acts as escape
 			{
 				done = true;
 				result = false;
 				checkkey = false;
 			}
-			if(button.b)             // acts as backspace
+			else
 			{
-				lastbuttontime = curtime;
-				if(cursor)
+				if(button.start)             // acts as return
 				{
-					strcpy(s + cursor - 1,s + cursor);
-					cursor--;
-					redraw = true;
+					strcpy(buf,s);
+					done = true;
+					result = true;
+					checkkey = false;
 				}
-				cursormoved = true;
-				checkkey = false;
+				if(button.b)             // acts as backspace
+				{
+					lastbuttontime = curtime;
+					if(cursor)
+					{
+						strcpy(s + cursor - 1,s + cursor);
+						cursor--;
+						redraw = true;
+						cursormoved = true;
+					}
+					checkkey = false;
+				}
 			}
 		}
 
@@ -637,19 +640,19 @@ US_LineInput(int x,int y,char *buf,const char *def,boolean escok,
 				cursor = (int) strlen(s);
 				cursormoved = true;
 			}
-			if (buttons.start)
-			{
-				strcpy(buf,s);
-				done = true;
-				result = true;
-			}
-			if (buttons.b)
+			if (buttons.b && buttons.start)
 			{
 				if (escok)
 				{
 					done = true;
 					result = false;
 				}
+			}
+			else if (buttons.start)
+			{
+				strcpy(buf,s);
+				done = true;
+				result = true;
 			}
 			if (buttons.c_down)
 			{

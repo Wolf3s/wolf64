@@ -47,7 +47,7 @@ else
     $(error Unknown game $(GAME))
 endif
 
-OPTIONS += GAMETITLE=$(ROMTITLE)
+OPTIONS += GAMETITLE=$(ROMTITLE) ROMNAME="$(ROMNAME)"
 
 $(shell mkdir -p $(BUILD_DIR))
 

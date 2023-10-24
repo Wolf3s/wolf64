@@ -191,8 +191,8 @@ void FixupCustom(int w);
 
 int CP_NewGame(int);
 int CP_Sound(int);
-int  CP_LoadGame(int quick);
-int  CP_SaveGame(int quick);
+int  CP_LoadGame(void);
+int  CP_SaveGame(void);
 int CP_Control(int);
 int CP_ChangeView(int);
 int CP_ExitOptions(int);

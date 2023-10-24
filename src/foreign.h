@@ -53,7 +53,7 @@
 #define	STR_GAMEPAD	"Gravis GamePad Enabled"
 #define	STR_SENS	"Mouse Sensitivity"
 #define	STR_STSENS	"Stick Sensitivity"
-#define	STR_STMODE	"Stick/Pad Mode"
+#define	STR_STMODE	"Default Mode"
 #define	STR_CUSTOM	"Customize controls"
 #define	STR_ALRUN	"Always Run"
 
