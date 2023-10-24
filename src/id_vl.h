@@ -30,7 +30,7 @@ extern	unsigned bordercolor;
 extern  uint32_t *ylookup;
 
 extern uint16_t gamepal[256];
-extern uint16_t *curpal;
+extern uint16_t curpal[256];
 
 //===========================================================================
 
