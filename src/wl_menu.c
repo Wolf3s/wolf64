@@ -1221,7 +1221,7 @@ CP_Cheats (int blank)
         switch (which)
         {
             case CHT_GODMODE:
-                godmode ^= 1;
+                godmode ^= 2;
                 DrawCheatScreen ();
                 ShootSnd ();
                 break;
@@ -2000,15 +2000,15 @@ DrawCheatScreen (void)
     {
         on = -1;
         if (i == CHT_GODMODE)
-            on = godmode;
+            on = !!godmode;
         else if (i == CHT_MAPREVEAL)
-            on = mapreveal;
+            on = !!mapreveal;
         else if (i == CHT_NOCLIP)
-            on = noclip;
+            on = !!noclip;
         else if (i == CHT_SHOWFPS)
-            on = fpscounter;
+            on = !!fpscounter;
 
-        if (on == 1)
+        if (on > 0)
             VWB_DrawPic (CHT_X + 30, CHT_Y + i * 13 + 2, C_SELECTEDPIC);
         else if (on == 0)
             VWB_DrawPic (CHT_X + 30, CHT_Y + i * 13 + 2, C_NOTSELECTEDPIC);
