@@ -4,6 +4,20 @@ A port of Wolfenstein 3D and Spear of Destiny to the Nintendo 64 console,
 adapted from [Wolf4SDL](https://github.com/11001011101001011/Wolf4SDL) and
 using [libdragon](https://libdragon.dev/).
 
+## Features
+
+- Analog movement with the control stick
+- One slot save/load using SRAM
+- N64 Mouse support
+- Cheat menu
+
+## Download
+
+ROMs built from the shareware versions of the game are included in the repository:
+
+- [wolfdemo.z64](./wolfdemo64.z64?raw=1)
+- [speardemo.z64](./speardemo64.z64?raw=1)
+
 ## Building
 
 [Libdragon
@@ -25,8 +39,8 @@ folder. The filenames of each of them must be all lowercase.
 | Wolfenstein      | audiohed.wl6 audiot.wl6 gamemaps.wl6 maphead.wl6 vgadict.wl6 vgagraph.wl6 vgahead.wl6 vswap.wl6 |
 | Spear of Destiny | audiohed.sod audiot.sod gamemaps.sod maphead.sod vgadict.sod vgagraph.sod vgahead.sod vswap.sod |
 
-Data files from the shareware demo versions are provided already in this
-repository.
+Data files from the shareware demo versions are provided already in the `data`
+folder.
 
 Then use one of these commands to build the appropriate ROM.
 
