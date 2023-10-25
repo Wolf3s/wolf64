@@ -14,7 +14,7 @@
 
 #define ENDGAMESTR	"Are you sure you want\n"\
 					"to end the game you\n"\
-					"are playing? (Y or N):"
+					"are playing?"
 
 #define STR_NG	"New Game"
 #define	STR_SD	"Sound"
@@ -30,6 +30,7 @@
 
 #define STR_LOADING	"Loading"
 #define STR_SAVING	"Saving"
+#define	STR_SAVED	"Game Saved"
 
 #define STR_GAME	"Game"
 #define STR_DEMO	"Demo"

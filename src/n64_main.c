@@ -29,6 +29,7 @@ void N64_Init(void)
     joypad_init();
     usb_initialize();
 
+    // set up SRAM DMA parameters
     disable_interrupts();
     *PI_BSD_DOM2_LAT = 0x5;
     *PI_BSD_DOM2_PWD = 0xc;

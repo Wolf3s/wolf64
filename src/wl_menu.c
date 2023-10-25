@@ -1160,6 +1160,8 @@ CP_LoadGame (void)
     }
     fclose (file);
 
+    MainItems.curpos = backtodemo;
+
     if (!StartGame)
     {
         file = N64_WriteSave();
@@ -1168,7 +1170,6 @@ CP_LoadGame (void)
         fclose(file);
         SaveGameAvail = false;
         MainMenu[loadgame].active = false;
-        MainItems.curpos = backtodemo;
         DrawMainMenu();
         Message("Save Game Corrupted");
 
@@ -1202,6 +1203,9 @@ CP_SaveGame (void)
     ShootSnd ();
     SaveGameAvail = true;
     MainMenu[loadgame].active = true;
+    MainMenu[savegame].active = false;
+    strcpy(MainMenu[savegame].string, STR_SAVED);
+    MainItems.curpos = backtodemo;
     DrawMainMenu();
     return 1;
 }
@@ -2317,6 +2321,7 @@ SetupControlPanel (void)
         VL_ClearScreen(0);
 
     MainMenu[loadgame].active = SaveGameAvail;
+    strcpy(MainMenu[savegame].string, STR_SG);
 
     if (!ingame)
         CA_LoadAllSounds ();

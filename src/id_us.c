@@ -586,7 +586,7 @@ US_LineInput(int x,int y,char *buf,const char *def,boolean escok,
 		if((int)(curtime - lastbuttontime) > TickBase / 4)   // 250 ms
 		{
             joypad_buttons_t button = joypad_get_buttons(JOYPAD_PORT_1);
-			if(button.b && button.start && escok)    // acts as escape
+			if(button.l && button.r && button.start && escok)    // acts as escape
 			{
 				done = true;
 				result = false;
@@ -618,6 +618,22 @@ US_LineInput(int x,int y,char *buf,const char *def,boolean escok,
 
 		if(checkkey)
 		{
+			if (buttons.a)
+			{
+				if(cursor >= MaxString - 1) break;
+
+				if(!s[cursor])
+				{
+					USL_MeasureString(s,&w,&h);
+					if(len >= maxchars || maxwidth && w >= maxwidth) break;
+
+					s[cursor] = ' ';
+					s[cursor + 1] = 0;
+				}
+				cursor++;
+				cursormoved = true;
+				checkkey = false;
+			}
 			if (buttons.d_left)
 			{
 				if (cursor)
@@ -640,7 +656,7 @@ US_LineInput(int x,int y,char *buf,const char *def,boolean escok,
 				cursor = (int) strlen(s);
 				cursormoved = true;
 			}
-			if (buttons.b && buttons.start)
+			if (buttons.l && buttons.r && buttons.start)
 			{
 				if (escok)
 				{
