@@ -33,7 +33,7 @@ unsigned bordercolor;
 uint32_t *ylookup;
 
 uint16_t palette1[256], palette2[256];
-uint16_t curpal[256];
+uint16_t curpal[256] __attribute__((aligned(16)));
 
 
 #define CASSERT(x) extern int ASSERT_COMPILE[((x) != 0) * 2 - 1];
@@ -113,7 +113,7 @@ void VL_SetVGAPlaneMode (void)
     resolution_t res = { .width = screenWidth + 32, .height = screenHeight + 16, .interlaced = INTERLACE_OFF };
     display_init(res, screenBits == 16 ? DEPTH_16_BPP : DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
-    memcpy(curpal, gamepal, sizeof gamepal);
+    memcpy(UncachedUShortAddr(curpal), gamepal, sizeof gamepal);
 
     storedScreen = surface_alloc(FMT_CI8, screenWidth, screenHeight);
     screenBuffer = &storedScreen;
@@ -195,40 +195,6 @@ void VL_FillPalette (int red, int green, int blue)
 /*
 =================
 =
-= VL_SetColor
-=
-=================
-*/
-
-void VL_SetColor	(int color, int red, int green, int blue)
-{
-    uint16_t col = color_to_packed16(RGBA16(red, green, blue, 255));
-    curpal[color] = col;
-}
-
-//===========================================================================
-
-/*
-=================
-=
-= VL_GetColor
-=
-=================
-*/
-
-void VL_GetColor	(int color, int *red, int *green, int *blue)
-{
-    color_t col = color_from_packed16(curpal[color]);
-    *red = col.r;
-    *green = col.g;
-    *blue = col.b;
-}
-
-//===========================================================================
-
-/*
-=================
-=
 = VL_SetPalette
 =
 =================
@@ -236,7 +202,7 @@ void VL_GetColor	(int color, int *red, int *green, int *blue)
 
 void VL_SetPalette (const uint16_t *palette, bool forceupdate)
 {
-    memcpy(curpal, palette, sizeof curpal);
+    memcpy(UncachedUShortAddr(curpal), palette, sizeof curpal);
     if (forceupdate)
         VW_UpdateScreen();
 }
@@ -254,7 +220,7 @@ void VL_SetPalette (const uint16_t *palette, bool forceupdate)
 
 void VL_GetPalette (uint16_t *palette)
 {
-    memcpy(palette, curpal, sizeof curpal);
+    memcpy(palette, UncachedUShortAddr(curpal), sizeof curpal);
 }
 
 
