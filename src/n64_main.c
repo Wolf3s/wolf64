@@ -158,7 +158,7 @@ int read_sram(void *cookie, char *buf, int len)
     if (b->pi + len >= SAVE_END_ADDR)
         return 0;
 
-    data_cache_hit_writeback_invalidate(buf, len);
+    data_cache_hit_writeback_invalidate((void*)(((uintptr_t)buf)&~15), (len + 15)&-15);
     dma_read_async(buf, b->pi, len);
     dma_wait();
     b->pi += len;
