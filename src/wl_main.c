@@ -1250,7 +1250,6 @@ static void DemoLoop()
         gamestate.mapon = param_tedlevel;
 #endif
         GameLoop();
-        Quit (NULL);
     }
 
 
