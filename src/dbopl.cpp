@@ -32,11 +32,9 @@
 	//DUNNO Keyon in 4op, switch to 2op without keyoff.
 */
 
-
-#include "version.h"
-
 #include <stdint.h>
 #include <stdbool.h>
+#include <libdragon.h>
 
 #include "dbopl.h"
 
@@ -73,16 +71,8 @@ typedef Channel* ( DBOPL::Channel::*SynthHandler) ( Chip* chip, uint32_t samples
 typedef enum {
 	sm2AM,
 	sm2FM,
-	sm3AM,
-	sm3FM,
-	sm4Start,
-	sm3FMFM,
-	sm3AMFM,
-	sm3FMAM,
-	sm3AMAM,
 	sm6Start,
 	sm2Percussion,
-	sm3Percussion,
 } SynthMode;
 
 //Shifts for the values contained in chandata variable
@@ -202,7 +192,7 @@ struct Channel {
 	//Forward the channel data to the operators of the channel
 	void SetChanData( const Chip* chip, uint32_t data );
 	//Change in the chandata, check for new values and if we have to forward to operators
-	void UpdateFrequency( const Chip* chip, uint8_t fourOp );
+	void UpdateFrequency( const Chip* chip );
 	void UpdateSynth(const Chip* chip);
 	void WriteA0( const Chip* chip, uint8_t val );
 	void WriteB0( const Chip* chip, uint8_t val );
@@ -250,10 +240,6 @@ struct Chip {
 	uint8_t tremoloStrength = 0;
 	//Mask for allowed wave forms
 	uint8_t waveFormMask = 0;
-	//0 or -1 when enabled
-	int8_t opl3Active;
-	//Running in opl3 mode
-	const bool opl3Mode;
 
 	//Return the maximum amount of samples before and LFO change
 	uint32_t ForwardLFO( uint32_t samples );
@@ -265,14 +251,13 @@ struct Chip {
 	uint32_t WriteAddr( uint32_t port, uint8_t val );
 
 	void GenerateBlock2( Bitu total, int32_t* output );
-	void GenerateBlock3( Bitu total, int32_t* output );
 
 	//Update the synth handlers in all channels
 	void UpdateSynths();
 	void Generate( uint32_t samples );
 	void Setup( uint32_t rate );
 
-	Chip( bool opl3Mode );
+	Chip();
 };
 
 
@@ -756,7 +741,7 @@ void Operator::WriteE0( const Chip* chip, uint8_t val ) {
 	if ( !(regE0 ^ val) )
 		return;
 	//in opl3 mode you can always selet 7 waveforms regardless of waveformselect
-	const uint8_t waveForm = val & ( ( 0x3 & chip->waveFormMask ) | (0x7 & chip->opl3Active ) );
+	const uint8_t waveForm = val & ( 0x3 & chip->waveFormMask );
 	regE0 = val;
 #if ( DBOPL_WAVE == WAVE_HANDLER )
 	waveHandler = WaveHandlerTable[ waveForm ];
@@ -911,7 +896,7 @@ void Channel::SetChanData( const Chip* chip, uint32_t data ) {
 	}
 }
 
-void Channel::UpdateFrequency( const Chip* chip, uint8_t fourOp ) {
+void Channel::UpdateFrequency( const Chip* chip ) {
 	//Extrace the frequency bits
 	uint32_t data = chanData & 0xffff;
 	uint32_t kslBase = KslTable[ data >> 6 ];
@@ -924,32 +909,21 @@ void Channel::UpdateFrequency( const Chip* chip, uint8_t fourOp ) {
 	//Add the keycode and ksl into the highest bits of chanData
 	data |= (keyCode << SHIFT_KEYCODE) | ( kslBase << SHIFT_KSLBASE );
 	( this + 0 )->SetChanData( chip, data );
-	if ( fourOp & 0x3f ) {
-		( this + 1 )->SetChanData( chip, data );
-	}
 }
 
 void Channel::WriteA0( const Chip* chip, uint8_t val ) {
-	uint8_t fourOp = chip->reg104 & chip->opl3Active & fourMask;
-	//Don't handle writes to silent fourop channels
-	if ( fourOp > 0x80 )
-		return;
 	uint32_t change = (chanData ^ val ) & 0xff;
 	if ( change ) {
 		chanData ^= change;
-		UpdateFrequency( chip, fourOp );
+		UpdateFrequency( chip );
 	}
 }
 
 void Channel::WriteB0( const Chip* chip, uint8_t val ) {
-	uint8_t fourOp = chip->reg104 & chip->opl3Active & fourMask;
-	//Don't handle writes to silent fourop channels
-	if ( fourOp > 0x80 )
-		return;
 	Bitu change = (chanData ^ ( (unsigned int)val << 8u ) ) & 0x1f00u;
 	if ( change ) {
 		chanData ^= change;
-		UpdateFrequency( chip, fourOp );
+		UpdateFrequency( chip );
 	}
 	//Check for a change in the keyon/off state
 	if ( !(( val ^ regB0) & 0x20))
@@ -958,17 +932,9 @@ void Channel::WriteB0( const Chip* chip, uint8_t val ) {
 	if ( val & 0x20 ) {
 		Op(0)->KeyOn( 0x1 );
 		Op(1)->KeyOn( 0x1 );
-		if ( fourOp & 0x3f ) {
-			( this + 1 )->Op(0)->KeyOn( 1 );
-			( this + 1 )->Op(1)->KeyOn( 1 );
-		}
 	} else {
 		Op(0)->KeyOff( 0x1 );
 		Op(1)->KeyOff( 0x1 );
-		if ( fourOp & 0x3f ) {
-			( this + 1 )->Op(0)->KeyOff( 1 );
-			( this + 1 )->Op(1)->KeyOff( 1 );
-		}
 	}
 }
 
@@ -990,57 +956,15 @@ void Channel::WriteC0(const Chip* chip, uint8_t val) {
 
 void Channel::UpdateSynth( const Chip* chip ) {
 	//Select the new synth mode
-	if ( chip->opl3Active ) {
-		//4-op mode enabled for this channel
-		if ( (chip->reg104 & fourMask) & 0x3f ) {
-			Channel* chan0, *chan1;
-			//Check if it's the 2nd channel in a 4-op
-			if ( !(fourMask & 0x80 ) ) {
-				chan0 = this;
-				chan1 = this + 1;
-			} else {
-				chan0 = this - 1;
-				chan1 = this;
-			}
+    //Disable updating percussion channels
+    if ( (fourMask & 0x40) && ( chip->regBD & 0x20 ) ) {
 
-			uint8_t synth = ( (chan0->regC0 & 1) << 0 )| (( chan1->regC0 & 1) << 1 );
-			switch ( synth ) {
-			case 0:
-				chan0->synthHandler = &Channel::BlockTemplate< sm3FMFM >;
-				break;
-			case 1:
-				chan0->synthHandler = &Channel::BlockTemplate< sm3AMFM >;
-				break;
-			case 2:
-				chan0->synthHandler = &Channel::BlockTemplate< sm3FMAM >;
-				break;
-			case 3:
-				chan0->synthHandler = &Channel::BlockTemplate< sm3AMAM >;
-				break;
-			}
-		//Disable updating percussion channels
-		} else if ((fourMask & 0x40) && ( chip->regBD & 0x20) ) {
-
-		//Regular dual op, am or fm
-		} else if (regC0 & 1 ) {
-			synthHandler = &Channel::BlockTemplate< sm3AM >;
-		} else {
-			synthHandler = &Channel::BlockTemplate< sm3FM >;
-		}
-		maskLeft = (regC0 & 0x10 ) ? -1 : 0;
-		maskRight = (regC0 & 0x20 ) ? -1 : 0;
-	//opl2 active
-	} else {
-		//Disable updating percussion channels
-		if ( (fourMask & 0x40) && ( chip->regBD & 0x20 ) ) {
-
-		//Regular dual op, am or fm
-		} else if (regC0 & 1 ) {
-			synthHandler = &Channel::BlockTemplate< sm2AM >;
-		} else {
-			synthHandler = &Channel::BlockTemplate< sm2FM >;
-		}
-	}
+    //Regular dual op, am or fm
+    } else if (regC0 & 1 ) {
+        synthHandler = &Channel::BlockTemplate< sm2AM >;
+    } else {
+        synthHandler = &Channel::BlockTemplate< sm2FM >;
+    }
 }
 
 template< bool opl3Mode>
@@ -1101,41 +1025,15 @@ template<SynthMode mode>
 Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output ) {
 	switch( mode ) {
 	case sm2AM:
-	case sm3AM:
 		if ( Op(0)->Silent() && Op(1)->Silent() ) {
 			old[0] = old[1] = 0;
 			return (this + 1);
 		}
 		break;
 	case sm2FM:
-	case sm3FM:
 		if ( Op(1)->Silent() ) {
 			old[0] = old[1] = 0;
 			return (this + 1);
-		}
-		break;
-	case sm3FMFM:
-		if ( Op(3)->Silent() ) {
-			old[0] = old[1] = 0;
-			return (this + 2);
-		}
-		break;
-	case sm3AMFM:
-		if ( Op(0)->Silent() && Op(3)->Silent() ) {
-			old[0] = old[1] = 0;
-			return (this + 2);
-		}
-		break;
-	case sm3FMAM:
-		if ( Op(1)->Silent() && Op(3)->Silent() ) {
-			old[0] = old[1] = 0;
-			return (this + 2);
-		}
-		break;
-	case sm3AMAM:
-		if ( Op(0)->Silent() && Op(2)->Silent() && Op(3)->Silent() ) {
-			old[0] = old[1] = 0;
-			return (this + 2);
 		}
 		break;
 	default:
@@ -1144,11 +1042,9 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 	//Init the operators with the the current vibrato and tremolo values
 	Op( 0 )->Prepare( chip );
 	Op( 1 )->Prepare( chip );
-	if ( mode > sm4Start ) {
+	if ( mode > sm6Start ) {
 		Op( 2 )->Prepare( chip );
 		Op( 3 )->Prepare( chip );
-	}
-	if ( mode > sm6Start ) {
 		Op( 4 )->Prepare( chip );
 		Op( 5 )->Prepare( chip );
 	}
@@ -1156,9 +1052,6 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 		//Early out for percussion handlers
 		if ( mode == sm2Percussion ) {
 			GeneratePercussion<false>( chip, output + i );
-			continue;	//Prevent some uninitialized value bitching
-		} else if ( mode == sm3Percussion ) {
-			GeneratePercussion<true>( chip, output + i * 2 );
 			continue;	//Prevent some uninitialized value bitching
 		}
 
@@ -1168,42 +1061,15 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 		old[1] = (int32_t)Op(0)->GetSample( mod );
 		int32_t sample;
 		int32_t out0 = old[0];
-		if ( mode == sm2AM || mode == sm3AM ) {
+		if ( mode == sm2AM ) {
 			sample = (int32_t)(out0 + Op(1)->GetSample( 0 ));
-		} else if ( mode == sm2FM || mode == sm3FM ) {
+		} else if ( mode == sm2FM ) {
 			sample = (int32_t)Op(1)->GetSample( out0 );
-		} else if ( mode == sm3FMFM ) {
-			Bits next = Op(1)->GetSample( out0 );
-			next = Op(2)->GetSample( next );
-			sample = (int32_t)Op(3)->GetSample( next );
-		} else if ( mode == sm3AMFM ) {
-			sample = out0;
-			Bits next = Op(1)->GetSample( 0 );
-			next = Op(2)->GetSample( next );
-			sample += (int32_t)Op(3)->GetSample( next );
-		} else if ( mode == sm3FMAM ) {
-			sample = (int32_t)Op(1)->GetSample( out0 );
-			Bits next = Op(2)->GetSample( 0 );
-			sample += (int32_t)Op(3)->GetSample( next );
-		} else if ( mode == sm3AMAM ) {
-			sample = out0;
-			Bits next = Op(1)->GetSample( 0 );
-			sample += (int32_t)Op(2)->GetSample( next );
-			sample += (int32_t)Op(3)->GetSample( 0 );
 		}
 		switch( mode ) {
 		case sm2AM:
 		case sm2FM:
 			output[ i ] += sample;
-			break;
-		case sm3AM:
-		case sm3FM:
-		case sm3FMFM:
-		case sm3AMFM:
-		case sm3FMAM:
-		case sm3AMAM:
-			output[ i * 2 + 0 ] += sample & maskLeft;
-			output[ i * 2 + 1 ] += sample & maskRight;
 			break;
 		default:
 			break;
@@ -1212,16 +1078,8 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 	switch( mode ) {
 	case sm2AM:
 	case sm2FM:
-	case sm3AM:
-	case sm3FM:
 		return ( this + 1 );
-	case sm3FMFM:
-	case sm3AMFM:
-	case sm3FMAM:
-	case sm3AMAM:
-		return( this + 2 );
 	case sm2Percussion:
-	case sm3Percussion:
 		return( this + 3 );
 	}
 	return 0;
@@ -1231,12 +1089,11 @@ Channel* Channel::BlockTemplate( Chip* chip, uint32_t samples, int32_t* output )
 	Chip
 */
 
-Chip::Chip( bool _opl3Mode ) : opl3Mode( _opl3Mode ) {
+Chip::Chip() {
 	reg08 = 0;
 	reg04 = 0;
 	regBD = 0;
 	reg104 = 0;
-	opl3Active = 0;
 }
 
 /*INLINE*/ uint32_t Chip::ForwardNoise() {
@@ -1289,11 +1146,7 @@ void Chip::WriteBD( uint8_t val ) {
 	if ( val & 0x20 ) {
 		//Drum was just enabled, make sure channel 6 has the right synth
 		if ( change & 0x20 ) {
-			if ( opl3Active ) {
-				chan[6].synthHandler = &Channel::BlockTemplate< sm3Percussion >;
-			} else {
-				chan[6].synthHandler = &Channel::BlockTemplate< sm2Percussion >;
-			}
+            chan[6].synthHandler = &Channel::BlockTemplate< sm2Percussion >;
 		}
 		//Bass Drum
 		if ( val & 0x10 ) {
@@ -1369,7 +1222,7 @@ void Chip::WriteReg( uint32_t reg, uint8_t val ) {
 	case 0x00 >> 4:
 		if ( reg == 0x01 ) {
 			//When the chip is running in opl3 compatible mode, you can't actually disable the waveforms
-			waveFormMask = ( (val & 0x20) || opl3Mode ) ? 0x7 : 0x0;
+			waveFormMask = (val & 0x20) ? 0x7 : 0x0;
 		} else if ( reg == 0x104 ) {
 			//Only detect changes in lowest 6 bits
 			if ( !((reg104 ^ val) & 0x3f) )
@@ -1377,14 +1230,6 @@ void Chip::WriteReg( uint32_t reg, uint8_t val ) {
 			//Always keep the highest bit enabled, for checking > 0x80
 			reg104 = 0x80 | ( val & 0x3f );
 			//Switch synths when changing the 4op combinations
-			UpdateSynths();
-		} else if ( reg == 0x105 ) {
-			//MAME says the real opl3 doesn't reset anything on opl3 disable/enable till the next write in another register
-			if ( !((opl3Active ^ val) & 1 ) )
-				return;
-			opl3Active = ( val & 1 ) ? 0xff : 0;
-			//Just update the synths now that opl3 must have been enabled
-			//This isn't how the real card handles it but need to switch to stereo generating handlers
 			UpdateSynths();
 		} else if ( reg == 0x08 ) {
 			reg08 = val;
@@ -1434,7 +1279,7 @@ uint32_t Chip::WriteAddr( uint32_t port, uint8_t val ) {
 	case 0:
 		return val;
 	case 2:
-		if ( opl3Active || (val == 0x05u) )
+		if (val == 0x05u)
 			return 0x100u | val;
 		else
 			return val;
@@ -1453,20 +1298,6 @@ void Chip::GenerateBlock2( Bitu total, int32_t* output ) {
 		}
 		total -= samples;
 		output += samples;
-	}
-}
-
-void Chip::GenerateBlock3( Bitu total, int32_t* output  ) {
-	while ( total > 0 ) {
-		uint32_t samples = ForwardLFO( (uint32_t)total );
-		memset(output, 0, sizeof(int32_t) * samples *2);
-//		int count = 0;
-		for( Channel* ch = chan; ch < chan + 18; ) {
-//			count++;
-			ch = (ch->*(ch->synthHandler))( this, samples, output );
-		}
-		total -= samples;
-		output += samples * 2;
 	}
 }
 
@@ -1723,7 +1554,7 @@ void InitTables( void ) {
 
 };		//Namespace DBOPL
 
-DBOPL::Chip oplChip(true);
+DBOPL::Chip oplChip;
 
 extern "C" {
 
@@ -1744,36 +1575,14 @@ void YM3812UpdateOne(int which, int16_t *stream, int length)
 	int32_t buffer[length * 2];
 	int i;
 
-	if(oplChip.opl3Active)
-	{
-		oplChip.GenerateBlock3(length, buffer);
+    oplChip.GenerateBlock2(length, buffer);
 
-		// GenerateBlock3 generates a number of "length" 32-bit stereo samples
-		// so we only need to convert them to 16-bit samples
-		for(i = 0; i < length * 2; i++)  // * 2 for left/right channel
-		{
-			// Multiply by 4 to match loudness of MAME emulator.
-			int32_t sample = (buffer[i] + buffer[i+1]) << 1;
-			if(sample > 32767) sample = 32767;
-			else if(sample < -32768) sample = -32768;
-			//stream[i>>1] = sample;
-		}
-	}
-	else
-	{
-		oplChip.GenerateBlock2(length, buffer);
-
-		// GenerateBlock3 generates a number of "length" 32-bit mono samples
-		// so we need to convert them to 32-bit stereo samples
-		for(i = 0; i < length; i++)
-		{
-			// Multiply by 4 to match loudness of MAME emulator.
-			// Then upconvert to stereo.
-			int32_t sample = buffer[i] << 2;
-			if(sample > 32767) sample = 32767;
-			else if(sample < -32768) sample = -32768;
-			stream[i] = sample;
-		}
-	}
+    for(i = 0; i < length; i++)
+    {
+        int32_t sample = buffer[i] << 2;
+        if(sample > 32767) sample = 32767;
+        else if(sample < -32768) sample = -32768;
+        stream[i] = sample;
+    }
 }
 }
