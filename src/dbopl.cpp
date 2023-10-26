@@ -52,7 +52,7 @@ typedef int32_t		Bits;
 #define WAVE_TABLEMUL	12
 
 //Select the type of wave generator routine
-#define DBOPL_WAVE WAVE_TABLEMUL
+#define DBOPL_WAVE WAVE_HANDLER
 
 namespace DBOPL {
 
@@ -61,7 +61,7 @@ struct Operator;
 struct Channel;
 
 #if (DBOPL_WAVE == WAVE_HANDLER)
-typedef Bits ( DB_FASTCALL *WaveHandler) ( Bitu i, Bitu volume );
+typedef Bits ( *WaveHandler) ( Bitu i, Bitu volume );
 #endif
 
 typedef Bits ( DBOPL::Operator::*VolumeHandler) ( );
@@ -457,26 +457,26 @@ static /*inline*/ Bits MakeVolume( Bitu wave, Bitu volume ) {
 	return (sig >> exp);
 };
 
-static Bits DB_FASTCALL WaveForm0( Bitu i, Bitu volume ) {
+static Bits WaveForm0( Bitu i, Bitu volume ) {
 	Bits neg = 0 - (( i >> 9) & 1);//Create ~0 or 0
 	Bitu wave = SinTable[i & 511];
 	return (MakeVolume( wave, volume ) ^ neg) - neg;
 }
-static Bits DB_FASTCALL WaveForm1( Bitu i, Bitu volume ) {
+static Bits WaveForm1( Bitu i, Bitu volume ) {
 	uint32_t wave = SinTable[i & 511];
 	wave |= ( ( (i ^ 512 ) & 512) - 1) >> ( 32 - 12 );
 	return MakeVolume( wave, volume );
 }
-static Bits DB_FASTCALL WaveForm2( Bitu i, Bitu volume ) {
+static Bits WaveForm2( Bitu i, Bitu volume ) {
 	Bitu wave = SinTable[i & 511];
 	return MakeVolume( wave, volume );
 }
-static Bits DB_FASTCALL WaveForm3( Bitu i, Bitu volume ) {
+static Bits WaveForm3( Bitu i, Bitu volume ) {
 	Bitu wave = SinTable[i & 255];
 	wave |= ( ( (i ^ 256 ) & 256) - 1) >> ( 32 - 12 );
 	return MakeVolume( wave, volume );
 }
-static Bits DB_FASTCALL WaveForm4( Bitu i, Bitu volume ) {
+static Bits WaveForm4( Bitu i, Bitu volume ) {
 	//Twice as fast
 	i <<= 1;
 	Bits neg = 0 - (( i >> 9) & 1);//Create ~0 or 0
@@ -484,18 +484,18 @@ static Bits DB_FASTCALL WaveForm4( Bitu i, Bitu volume ) {
 	wave |= ( ( (i ^ 512 ) & 512) - 1) >> ( 32 - 12 );
 	return (MakeVolume( wave, volume ) ^ neg) - neg;
 }
-static Bits DB_FASTCALL WaveForm5( Bitu i, Bitu volume ) {
+static Bits WaveForm5( Bitu i, Bitu volume ) {
 	//Twice as fast
 	i <<= 1;
 	Bitu wave = SinTable[i & 511];
 	wave |= ( ( (i ^ 512 ) & 512) - 1) >> ( 32 - 12 );
 	return MakeVolume( wave, volume );
 }
-static Bits DB_FASTCALL WaveForm6( Bitu i, Bitu volume ) {
+static Bits WaveForm6( Bitu i, Bitu volume ) {
 	Bits neg = 0 - (( i >> 9) & 1);//Create ~0 or 0
 	return (MakeVolume( 0, volume ) ^ neg) - neg;
 }
-static Bits DB_FASTCALL WaveForm7( Bitu i, Bitu volume ) {
+static Bits WaveForm7( Bitu i, Bitu volume ) {
 	//Negative is reversed here
 	Bits neg = (( i >> 9) & 1) - 1;
 	Bitu wave = (i << 3);
@@ -844,9 +844,11 @@ Operator::Operator() {
 	reg60 = 0;
 	reg80 = 0;
 	regE0 = 0;
+#if DBOPL_WAVE > WAVE_HANDLER
     waveBase = 0;
     waveMask = 0;
     waveStart = 0;
+#endif
     vibrato = 0;
     attackAdd = 0;
     decayAdd = 0;
