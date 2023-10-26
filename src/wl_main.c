@@ -827,7 +827,6 @@ void InitDigiMap (void)
     {
         DigiMap[map[0]] = map[1];
         DigiChannel[map[1]] = map[2];
-        SD_PrepareSound(map[1]);
     }
 }
 

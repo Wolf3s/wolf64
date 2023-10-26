@@ -34,7 +34,6 @@
 
 static waveform_t FMGenerator;
 static waveform_t PCGenerator;
-static waveform_t SoundChunks[ STARTMUSIC - STARTDIGISOUNDS];
 
 globalsoundpos channelSoundPos[N_CHANNELS];
 
@@ -263,9 +262,10 @@ SD_StopDigitized(void)
 
 int SD_GetChannelForDigi(int which)
 {
-    if(DigiChannel[which] != -1) return DigiChannel[which];
+    int channel = DigiChannel[which];
+    if (channel != -1)
+        return channel;
 
-    int channel = -1;
     uint64_t dist = 0, curdist;
     uint64_t cur = get_ticks();
     for (int i = 2; i < N_CHANNELS; i++)
@@ -320,28 +320,6 @@ static void SD_ReadSample(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
   memcpy(ptr, ctx + wpos, wlen);
 }
 
-void SD_PrepareSound(int which)
-{
-    if(DigiList == NULL)
-        Quit("SD_PrepareSound(%i): DigiList not initialized!\n", which);
-
-    int page = DigiList[which].startpage;
-    int size = DigiList[which].length;
-
-    byte *origsamples = PM_GetSoundPage(page);
-    if(origsamples + size >= PM_GetPageEnd())
-        Quit("SD_PrepareSound(%i): Sound reaches out of page file!\n", which);
-
-    SoundChunks[which].bits = 8;
-    SoundChunks[which].channels = 1;
-    SoundChunks[which].frequency = ORIGSAMPLERATE;
-    SoundChunks[which].loop_len = 0;
-    SoundChunks[which].name = "";
-    SoundChunks[which].len = size;
-    SoundChunks[which].read = SD_ReadSample;
-    SoundChunks[which].ctx = origsamples;
-}
-
 int SD_PlayDigitized(word which,int leftpos,int rightpos)
 {
     if (!DigiMode)
@@ -350,11 +328,21 @@ int SD_PlayDigitized(word which,int leftpos,int rightpos)
     if (which >= NumDigi)
         Quit("SD_PlayDigitized: bad sound number %i", which);
 
-    int channel = SD_GetChannelForDigi(which);
-
     DigiPlaying = true;
 
-    waveform_t *sample = &SoundChunks[which];
+    int channel = SD_GetChannelForDigi(which);
+
+    waveform_t *sample = &channelSoundPos[channel].wave;
+
+    if (which != channelSoundPos[channel].which)
+    {
+        mixer_ch_stop(channel);
+
+        channelSoundPos[channel].which = which;
+
+        sample->ctx = PM_GetSoundPage(DigiList[which].startpage);
+        sample->len = DigiList[which].length;
+    }
 
     mixer_ch_play(channel, sample);
     channelSoundPos[channel].valid = 1;
@@ -769,6 +757,23 @@ SD_Startup(void)
 
     audio_init(param_samplerate, 4);
     mixer_init(N_CHANNELS + 3);
+
+    // Init sfx generators
+
+    for (int i = 0; i < lengthof(channelSoundPos); i++)
+    {
+        waveform_t *wave = &channelSoundPos[i].wave;
+        wave->bits = 8;
+        wave->channels = 1;
+        wave->frequency = ORIGSAMPLERATE;
+        wave->loop_len = 0;
+        wave->name = "sfx";
+        wave->len = 0;
+        wave->read = SD_ReadSample;
+        wave->ctx = NULL;
+
+        channelSoundPos[i].which = -1;
+    }
 
     // Init music
 
