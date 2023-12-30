@@ -51,18 +51,19 @@ OPTIONS += GAMETITLE=$(ROMTITLE) ROMNAME="$(ROMNAME)"
 
 $(shell mkdir -p $(BUILD_DIR))
 
+hash := \#
 define nl
 
 
 endef
 
 CONFIG_H := $(BUILD_DIR)/config.h
-C_OPTIONS = $(foreach d,$(OPTIONS),#define $(subst =, ,$(d))$(nl))
+C_OPTIONS = $(foreach d,$(OPTIONS),$(hash)define $(subst =, ,$(d))$(nl))
 
 ifeq (,$(wildcard $(CONFIG_H)))
     $(file > $(CONFIG_H),$(C_OPTIONS))
 endif
-ifneq ($(strip $(file < $(CONFIG_H))),$(strip $(C_OPTIONS)))
+ifneq ($(strip $(shell cat $(CONFIG_H))),$(strip $(C_OPTIONS)))
     $(file > $(CONFIG_H),$(C_OPTIONS))
 endif
 

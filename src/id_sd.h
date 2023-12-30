@@ -11,6 +11,8 @@
 #include "wl_data.h"
 #include "wl_types.h"
 
+#include <libdragon.h>
+
 #define N_CHANNELS 8
 
 #define alOut(n,b) YM3812Write(oplChip, n, b)
@@ -108,9 +110,11 @@ typedef struct
 
 typedef struct
 {
+    int which;
     int valid;
     uint64_t started;
     fixed globalsoundx, globalsoundy;
+    waveform_t wave;
 } globalsoundpos;
 
 typedef struct
@@ -160,7 +164,6 @@ extern  boolean SD_SetMusicMode(SMMode mode);
 extern  word    SD_SoundPlaying(void);
 
 extern  void    SD_SetDigiDevice(SDSMode);
-extern  void	SD_PrepareSound(int which);
 extern  int     SD_PlayDigitized(word which,int leftpos,int rightpos);
 extern  void    SD_StopDigitized(void);
 
